@@ -57,7 +57,7 @@ type PaginatedResponse struct {
 	Status      string     `json:"status"`
 }
 
-func GetCreatedIssueCheckOffice(params *RequestParams) ([]int, error) {
+func (ia *IssueAction) GetCreatedIssueCheckOffice(params *RequestParams) ([]TaskItem, error) {
 
 	/*
 		params_loc := RequestParams{
@@ -77,16 +77,16 @@ func GetCreatedIssueCheckOffice(params *RequestParams) ([]int, error) {
 	}
 
 	// Множество для уникальных ID
-	uniqueIDs := make(map[int]struct{})
+	uniqueIDs := make(map[int]TaskItem)
 
-	firstResp, err := fetchPage(fullURL)
+	firstResp, err := ia.fetchPage(fullURL)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка при запросе первой страницы: %v", err)
 	}
 
 	// Добавляем ID из первой страницы
 	for _, item := range firstResp.Data {
-		uniqueIDs[item.InspectionID] = struct{}{}
+		uniqueIDs[item.InspectionID] = item
 	}
 
 	// Если всего одна страница или данных нет, возвращаем результат
@@ -101,7 +101,7 @@ func GetCreatedIssueCheckOffice(params *RequestParams) ([]int, error) {
 		if err != nil {
 			return nil, err
 		}
-		resp, err := fetchPage(pageURL)
+		resp, err := ia.fetchPage(pageURL)
 		if err != nil {
 			// Логируем ошибку, но продолжаем (можно изменить поведение)
 			log.Printf("Предупреждение: ошибка при загрузке страницы %d: %v", page, err)
@@ -109,7 +109,7 @@ func GetCreatedIssueCheckOffice(params *RequestParams) ([]int, error) {
 		}
 
 		for _, item := range resp.Data {
-			uniqueIDs[item.InspectionID] = struct{}{}
+			uniqueIDs[item.InspectionID] = item
 		}
 		// Небольшая задержка, чтобы не перегружать сервер
 		time.Sleep(200 * time.Millisecond)
@@ -118,7 +118,7 @@ func GetCreatedIssueCheckOffice(params *RequestParams) ([]int, error) {
 	return mapKeysToSlice(uniqueIDs), nil
 }
 
-func GetListIssueCheckOffice(params *RequestParams) ([]int, error) {
+func (ia *IssueAction) GetListIssueCheckOffice(params *RequestParams) ([]TaskItem, error) {
 
 	/*
 		params_loc := RequestParams{
@@ -138,16 +138,16 @@ func GetListIssueCheckOffice(params *RequestParams) ([]int, error) {
 	}
 
 	// Множество для уникальных ID
-	uniqueIDs := make(map[int]struct{})
+	uniqueIDs := make(map[int]TaskItem)
 
-	firstResp, err := fetchPage(fullURL)
+	firstResp, err := ia.fetchPage(fullURL)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка при запросе первой страницы: %v", err)
 	}
 
 	// Добавляем ID из первой страницы
 	for _, item := range firstResp.Data {
-		uniqueIDs[item.ID] = struct{}{}
+		uniqueIDs[item.ID] = item
 	}
 
 	// Если всего одна страница или данных нет, возвращаем результат
@@ -162,7 +162,8 @@ func GetListIssueCheckOffice(params *RequestParams) ([]int, error) {
 		if err != nil {
 			return nil, err
 		}
-		resp, err := fetchPage(pageURL)
+		resp, err := ia.fetchPage(pageURL)
+
 		if err != nil {
 			// Логируем ошибку, но продолжаем (можно изменить поведение)
 			log.Printf("Предупреждение: ошибка при загрузке страницы %d: %v", page, err)
@@ -170,7 +171,7 @@ func GetListIssueCheckOffice(params *RequestParams) ([]int, error) {
 		}
 
 		for _, item := range resp.Data {
-			uniqueIDs[item.ID] = struct{}{}
+			uniqueIDs[item.ID] = item
 		}
 		// Небольшая задержка, чтобы не перегружать сервер
 		time.Sleep(200 * time.Millisecond)
@@ -216,13 +217,18 @@ func buildURL(base string, params *RequestParams, page int) (string, error) {
 }
 
 // fetchPage выполняет один запрос к указанной странице и возвращает распарсенный ответ
-func fetchPage(url string) (*PaginatedResponse, error) {
+func (ia *IssueAction) fetchPage(url string) (*PaginatedResponse, error) {
+
 	req, err := http.NewRequest("GET", url, nil)
+
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("API-Key", apiKey)
+
+	//добавляю вызов api в log
+	ia.store.AddLog(url)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
@@ -248,12 +254,11 @@ func fetchPage(url string) (*PaginatedResponse, error) {
 }
 
 // Вспомогательная функция для преобразования map-ключа в слайс
-func mapKeysToSlice(m map[int]struct{}) []int {
+func mapKeysToSlice(m map[int]TaskItem) []TaskItem {
 
-	keys := make([]int, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+	result := make([]TaskItem, 0, len(m))
+	for _, v := range m {
+		result = append(result, v)
 	}
-
-	return keys
+	return result
 }

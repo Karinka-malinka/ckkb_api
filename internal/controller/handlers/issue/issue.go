@@ -20,14 +20,39 @@ func NewIssueHandler(actionIssue IIssueAction) *IssueHandler {
 type PaginationRequest struct {
 	Statuses      []string `json:"statuses"`
 	Assignees     []int    `json:"assignees"`
-	CreatedAtFrom string   `json:"created_at_from"`
+	CreatedAtFrom string   `json:"created_at_from,omitempty"`
 	PerPage       int      `json:"per_page"`
 }
 
-type ListIssueResponse struct {
-	Status string     `json:"status"`
-	Count  int        `json:"count"`
-	Data   []TaskItem `json:"data"`
+type StatisticsResponse struct {
+	Statistics Statistics `json:"statistics"`
+}
+
+type Statistics struct {
+	NewTask New     `json:"new"`
+	InWork  Process `json:"in_work"`
+	Revise  Revise  `json:"revise"`
+	Check   Check   `json:"check"`
+}
+
+type New struct {
+	Count int        `json:"count"`
+	Data  []TaskItem `json:"data"`
+}
+
+type Process struct {
+	Count int        `json:"count"`
+	Data  []TaskItem `json:"data"`
+}
+
+type Revise struct {
+	Count int        `json:"count"`
+	Data  []TaskItem `json:"data"`
+}
+
+type Check struct {
+	Count int        `json:"count"`
+	Data  []TaskItem `json:"data"`
 }
 
 // TaskItem соответствует одному элементу в поле "data"
@@ -37,14 +62,14 @@ type TaskItem struct {
 	IssueURL     string `json:"issue_url"`
 	InspectionID int    `json:"inspection_id"`
 	Status       string `json:"status"`
-	Title        string `json:"title"`
-	Description  string `json:"description"`
+	Title        string `json:"topic"`
+	Description  string `json:"object_type"`
 	CreatedAt    string `json:"created_at"`
 	//TODO добавить другие поля задачи
 }
 
 func (ih *IssueHandler) RegisterHandler(apiGroup *echo.Group) {
-	apiGroup.GET("/list", ih.ListIssue)
+	apiGroup.POST("/list", ih.ListIssue)
 	//restrictedGroup.GET(path+"/settings/:"+queryID+"&"+queryPortal+"&"+queryGBUName, ph.Read)
 	//restrictedGroup.GET(path+"/list", ph.List)
 	//restrictedGroup.POST("/issue/listpaginated", ih.ListPaginated)
@@ -78,19 +103,55 @@ func (ih *IssueHandler) ListIssue(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, "error in getting issue list")
 	}
 
-	data := make([]TaskItem, len(listIssue))
+	dataNew := []TaskItem{}
+	dataProcess := []TaskItem{}
+	dataRevise := []TaskItem{}
+	dataCheck := []TaskItem{}
 
-	for i, task := range listIssue {
-		data[i] = TaskItem{
-			ID:       task,
-			IssueURL: fmt.Sprintf("https://ckkb-mos.online/publicapi/v1/tasks/%d/view", task),
+	for _, task := range listIssue {
+		data := TaskItem{
+			ID:           task.ID,
+			PublicID:     task.PublicID,
+			InspectionID: task.InspectionID,
+			Title:        task.Title,
+			Description:  task.Description,
+			IssueURL:     fmt.Sprintf("https://ckkb-mos.online/tasks/%d/view", task.ID),
+			Status:       task.Status,
+		}
+
+		switch task.Status {
+		case "created":
+			dataNew = append(dataNew, data)
+		case "process":
+			dataProcess = append(dataProcess, data)
+		case "revise":
+			dataRevise = append(dataRevise, data)
+		case "validation":
+			dataCheck = append(dataCheck, data)
+		case "review":
+			dataCheck = append(dataCheck, data)
 		}
 	}
 
-	response := ListIssueResponse{
-		Status: request.Statuses[0],
-		Count:  len(listIssue),
-		Data:   data,
+	response := StatisticsResponse{
+		Statistics: Statistics{
+			NewTask: New{
+				Count: len(dataNew),
+				Data:  dataNew,
+			},
+			InWork: Process{
+				Count: len(dataProcess),
+				Data:  dataProcess,
+			},
+			Revise: Revise{
+				Count: len(dataRevise),
+				Data:  dataRevise,
+			},
+			Check: Check{
+				Count: len(dataCheck),
+				Data:  dataCheck,
+			},
+		},
 	}
 
 	return c.JSON(http.StatusOK, response)

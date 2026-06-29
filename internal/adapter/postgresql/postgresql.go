@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"database/sql"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/sirupsen/logrus"
@@ -32,4 +33,18 @@ func NewDB() (*sql.DB, error) {
 
 func NewPostgreSQLStorage(db *sql.DB) *PostgreSQLStorage {
 	return &PostgreSQLStorage{db: db}
+}
+
+func (ps *PostgreSQLStorage) AddLog(reqURL string) error {
+
+	query := `INSERT INTO public.log (request, created_at) VALUES($1, $2)`
+
+	_, err := ps.db.Exec(query, reqURL, time.Now().Local())
+
+	if err != nil {
+		logrus.Errorf("Ошибка записи в лог: %v", err)
+		return err
+	}
+
+	return nil
 }

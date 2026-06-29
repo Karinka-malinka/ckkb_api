@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/ckkb_api/internal/controller/handlers"
+	"github.com/ckkb_api/internal/controller/server"
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
 
@@ -14,6 +16,8 @@ type Router struct {
 func NewEchoRouter(handlers []handlers.Handler) *Router {
 
 	router := &Router{Echo: echo.New()}
+
+	router.Echo.Validator = &server.CustomValidator{Validator: validator.New()}
 
 	router.Echo.Use(CORSMiddleware())
 
